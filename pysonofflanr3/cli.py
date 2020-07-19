@@ -6,7 +6,7 @@ import click
 import click_log
 from click_log import ClickHandler
 
-from pysonofflanr3 import SonoffSwitch, Discover
+from pysonofflanr3 import SonoffSwitch, SonoffTemperatureHumidity, Discover
 
 if sys.version_info < (3, 6):  # pragma: no cover
     print(
@@ -85,10 +85,16 @@ pass_config = click.make_pass_decorator(dict, ensure=True)
     required=False,
     help="time to wait for listen.",
 )
+@click.option(
+    "--device_class",
+    envvar="PYSONOFFLAN_device_class",
+    required=False,
+    help="Type of device: SonoffSwitch or SonoffTemperatureHumidity",
+)
 @click.pass_context
 @click_log.simple_verbosity_option(logger, "--loglevel", "-l")
 @click.version_option()
-def cli(ctx, host, device_id, api_key, inching, wait):
+def cli(ctx, host, device_id, api_key, inching, wait, device_class):
     """A cli tool for controlling Sonoff Smart Switches/Plugs in LAN Mode."""
     if ctx.invoked_subcommand == "discover":
         return
@@ -104,6 +110,7 @@ def cli(ctx, host, device_id, api_key, inching, wait):
         "api_key": api_key,
         "inching": inching,
         "wait": wait,
+        "device_class": device_class,
     }
 
 
@@ -138,8 +145,9 @@ def state(config: dict):
 
                 device.shutdown_event_loop()
 
-    logger.info("Initialising SonoffSwitch with host %s" % config["host"])
-    SonoffSwitch(
+    device_class = get_device_class(config)
+    logger.info("Initialising %s with host %s", device_class.__name__, config["host"])
+    device_class(
         host=config["host"],
         callback_after_update=state_callback,
         logger=logger,
@@ -186,10 +194,11 @@ def listen(config: dict):
                     ):
                         self.shutdown_event_loop()
 
-    logger.info("Initialising SonoffSwitch with host %s" % config["host"])
+    device_class = get_device_class(config)
+    logger.info("Initialising %s with host %s", device_class.__name__, config["host"])
 
     shared_state = {"callback_counter": 0}
-    SonoffSwitch(
+    device_class(
         host=config["host"],
         callback_after_update=state_callback,
         shared_state=shared_state,
@@ -212,14 +221,15 @@ def print_device_details(device):
         logger.info(
             "State: "
             + click.style(
-                "ON" if device.is_on else "OFF",
+                device.state,
                 fg="green" if device.is_on else "red",
             )
         )
 
 
 def switch_device(config: dict, inching, new_state):
-    logger.info("Initialising SonoffSwitch with host %s" % config["host"])
+    device_class = get_device_class(config)
+    logger.info("Initialising %s with host %s", device_class.__name__, config["host"])
 
     async def update_callback(device: SonoffSwitch):
         if device.basic_info is not None:
@@ -240,6 +250,12 @@ def switch_device(config: dict, inching, new_state):
                             device.shutdown_event_loop()
                         else:
                             await device.turn_on()
+                    else:
+                        logger.info("Device is neither ON or OFF. It's probably in temperature mode.")
+                        if new_state == "on":
+                            await device.turn_on()
+                        else:
+                            await device.turn_off()
 
                 else:
                     logger.info(
@@ -247,7 +263,7 @@ def switch_device(config: dict, inching, new_state):
                         % inching
                     )
 
-    SonoffSwitch(
+    device_class(
         host=config["host"],
         callback_after_update=update_callback,
         inching_seconds=int(inching) if inching else None,
@@ -255,6 +271,13 @@ def switch_device(config: dict, inching, new_state):
         device_id=config["device_id"],
         api_key=config["api_key"],
     )
+
+def get_device_class(config: dict):
+    if config["device_class"] == "SonoffTemperatureHumidity":
+        return SonoffTemperatureHumidity
+    else:
+        return SonoffSwitch
+
 
 
 if __name__ == "__main__":

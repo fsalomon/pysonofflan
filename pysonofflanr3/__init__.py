@@ -58,3 +58,4 @@ from .client import SonoffLANModeClient
 from .discover import Discover
 from .sonoffdevice import SonoffDevice
 from .sonoffswitch import SonoffSwitch
+from .sonofftemperaturehumidity import SonoffTemperatureHumidity
