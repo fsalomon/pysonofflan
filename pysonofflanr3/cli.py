@@ -207,6 +207,21 @@ def listen(config: dict):
         api_key=config["api_key"],
     )
 
+@cli.command()
+@click.argument('low')
+@click.argument('high')
+@pass_config
+def cool(config: dict, low, high):
+    """Set temperature targets for cooling (implies device_class SonoffTemperatureHumidity)."""
+    set_temperature_targets(config, "cool", int(low), int(high))
+
+@cli.command()
+@click.argument('low')
+@click.argument('high')
+@pass_config
+def heat(config: dict, low, high):
+    """Set temperature targets for heating (implies device_class SonoffTemperatureHumidity)."""
+    set_temperature_targets(config, "heat", int(low), int(high))
 
 def print_device_details(device):
     if device.basic_info is not None:
@@ -271,6 +286,32 @@ def switch_device(config: dict, inching, new_state):
         device_id=config["device_id"],
         api_key=config["api_key"],
     )
+
+def set_temperature_targets(config: dict, mode: str, low: int, high: int):
+    device_class = SonoffTemperatureHumidity
+    logger.info("Initialising %s with host %s", device_class.__name__, config["host"])
+
+    async def update_callback(device: SonoffSwitch):
+        if device.basic_info is not None:
+
+            if device.available:
+                print_device_details(device)
+
+                if mode == "heat":
+                    await device.set_heat_targets(low, high)
+                else:
+                    await device.set_cool_targets(low, high)
+
+
+    device_class(
+        host=config["host"],
+        callback_after_update=update_callback,
+        inching_seconds=None,
+        logger=logger,
+        device_id=config["device_id"],
+        api_key=config["api_key"],
+    )
+
 
 def get_device_class(config: dict):
     if config["device_class"] == "SonoffTemperatureHumidity":

@@ -97,3 +97,18 @@ class SonoffTemperatureHumidity(SonoffSwitch):
         """
         self.logger.debug("Switch turn_off called.")
         self.update_params({"switch": "off", "mainSwitch": "off", "deviceType": "normal"})
+
+    async def set_heat_targets(self, low: int, high: int):
+        """
+        Set the target temperatures for heating.
+        """
+        self.logger.debug("Switch set_heat_targets %d/%d called.", low, high)
+        self.update_params({"mainSwitch":"on","deviceType":"temperature","targets":[{"targetHigh":high,"reaction":{"switch":"off"}},{"targetLow":low,"reaction":{"switch":"on"}}]})
+
+
+    async def set_cool_targets(self, low: int, high: int):
+        """
+        Set the target temperatures for cooling.
+        """
+        self.logger.debug("Switch set_cool_targets %d/%d called.", low, high)
+        self.update_params({"mainSwitch":"on","deviceType":"temperature","targets":[{"targetHigh":high,"reaction":{"switch":"on"}},{"targetLow":low,"reaction":{"switch":"off"}}]})

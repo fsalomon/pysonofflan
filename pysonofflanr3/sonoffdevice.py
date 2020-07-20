@@ -321,7 +321,8 @@ class SonoffDevice(object):
                 or self.client.type == b"th_plug"
             ):
 
-                switch_status = response["switch"]
+                if "switch" in response:
+                    switch_status = response["switch"]              
 
             else:
                 self.logger.error(
@@ -346,22 +347,40 @@ class SonoffDevice(object):
             # is there is a new message queued to be sent
             if self.params_updated_event.is_set():
 
-                # only send client update message if the change successful
-                if self.params["switch"] == switch_status:
+                if "switch" in self.params:
+                    # only send client update message if the change successful
+                    if self.params["switch"] == switch_status:
 
-                    self.message_acknowledged_event.set()
-                    send_update = True
-                    self.logger.debug(
-                        "expected update received from switch: %s",
-                        switch_status,
-                    )
+                        self.message_acknowledged_event.set()
+                        send_update = True
+                        self.logger.debug(
+                            "expected update received from switch: %s",
+                            switch_status,
+                        )
 
-                else:
-                    self.logger.info(
-                        "failed update! state is: %s, expecting: %s",
-                        switch_status,
-                        self.params["switch"],
-                    )
+                    else:
+                        self.logger.info(
+                            "failed update! state is: %s, expecting: %s",
+                            switch_status,
+                            self.params["switch"],
+                        )
+
+                elif "targets" in self.params:
+                    if (
+                        "targets" in response
+                        and response["targets"] == self.params["targets"]
+                    ):
+                        self.message_acknowledged_event.set()
+                        self.logger.debug(
+                            "expected update received from switch. targets match."
+                        )
+                        self.shutdown_event_loop()
+
+                    else: 
+                        self.logger.debug(
+                            "failed update! targets don't match."
+                        )
+                        send_update = true
 
             else:
                 # this is a status update message originating from the device
@@ -372,9 +391,10 @@ class SonoffDevice(object):
                     switch_status,
                 )
 
-                if self.params["switch"] != switch_status:
-                    self.params = {"switch": switch_status}
-                    send_update = True
+                if "switch" in self.params:
+                    if self.params["switch"] != switch_status:
+                        self.params = {"switch": switch_status}
+                        send_update = True
 
             if send_update and self.callback_after_update is not None:
                 await self.callback_after_update(self)
